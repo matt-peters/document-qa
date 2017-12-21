@@ -28,6 +28,7 @@ def main():
     parser.add_argument("--l2", type=float, default=0)
     parser.add_argument("--mode", choices=["input", "output", "both", "none"], default="both")
     parser.add_argument("--top_layer_only", action="store_true")
+    parser.add_argument("--exclude_glove", action="store_true")
     args = parser.parse_args()
 
     out = args.output_dir + "-" + datetime.now().strftime("%m%d-%H%M%S")
@@ -46,13 +47,19 @@ def main():
         DropoutLayer(0.5),
     )
 
+    if args.exclude_glove:
+        print("Removing GloVe")
+        word_embed = None
+    else:
+        word_embed=FixedWordEmbedder(vec_name="glove.840B.300d", word_vec_init_scale=0, learn_unk=False, cpu=True)
+
     model = AttentionWithElmo(
         encoder=DocumentAndQuestionEncoder(SingleSpanAnswerEncoder()),
         lm_model=SquadContextConcatSkip(),
         append_before_atten=(args.mode == "both" or args.mode == "output"),
         append_embed=(args.mode == "both" or args.mode == "input"),
         max_batch_size=128,
-        word_embed=FixedWordEmbedder(vec_name="glove.840B.300d", word_vec_init_scale=0, learn_unk=False, cpu=True),
+        word_embed=word_embed,
         char_embed=CharWordEmbedder(
             LearnedCharEmbedder(word_size_th=14, char_th=49, char_dim=20, init_scale=0.05, force_cpu=True),
             MaxPool(Conv1d(100, 5, 0.8)),
