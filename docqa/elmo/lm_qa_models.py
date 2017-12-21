@@ -178,7 +178,7 @@ class ElmoQaModel(Model):
             q_embed.append(q)
             c_embed.append(c)
 
-        if enc.question_words in input_tensors:
+        if enc.question_words in input_tensors and self.word_embed is not None:
             with tf.variable_scope("word-embed"):
                 q, c = self.word_embed.embed(is_train,
                                             (input_tensors[enc.question_words], q_mask),
@@ -211,12 +211,12 @@ class ElmoQaModel(Model):
         data = self.encoder.encode(batch, is_train)
         data[self._question_char_ids_placeholder] = self._batcher.batch_sentences([q.question for q in batch])
         data[self._is_train_placeholder] = is_train
-        context_word_dim = data[self.encoder.context_words].shape[1]
 
         if not self.per_sentence:
             data[self._context_char_ids_placeholder] = \
                 self._batcher.batch_sentences([x.get_context() for x in batch])
         else:
+            context_word_dim = data[self.encoder.context_words].shape[1]
             data[self._context_char_ids_placeholder] = \
                 self._batcher.batch_sentences(flatten_iterable([x.sentences for x in batch]))
 

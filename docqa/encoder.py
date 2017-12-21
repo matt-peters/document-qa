@@ -257,10 +257,12 @@ class DocumentAndQuestionEncoder(Configurable):
         n_context_words = self.max_context_word_dim
         batch_size = self.batch_size
 
-        self.context_words = tf.placeholder('int32', [batch_size, n_context_words], name='context_words')
+        if self._word_embedder is not None:
+            self.context_words = tf.placeholder('int32', [batch_size, n_context_words], name='context_words')
         self.context_len = tf.placeholder('int32', [batch_size], name='context_len')
 
-        self.question_words = tf.placeholder('int32', [batch_size, n_question_words], name='question_words')
+        if self._word_embedder is not None:
+            self.question_words = tf.placeholder('int32', [batch_size, n_question_words], name='question_words')
         self.question_len = tf.placeholder('int32', [batch_size], name='question_len')
 
         if self._char_emb:
@@ -350,7 +352,8 @@ class DocumentAndQuestionEncoder(Configurable):
         else:
             context_chars, question_chars, question_word_len, context_word_len = None, None, None, None
 
-        query_once = self._word_embedder.query_once()
+        if self._word_embedder is not None:
+            query_once = self._word_embedder.query_once()
 
         # Now fill in the place holders by iterating through the data
         for doc_ix, doc in enumerate(batch):
