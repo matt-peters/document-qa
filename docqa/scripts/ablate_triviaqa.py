@@ -38,7 +38,7 @@ def get_triviaqa_train_params(n_epochs, n_dev, n_train):
         eval_samples=dict(dev=n_dev, train=n_train))
 
 
-def get_model(char_th: int, dim: int, mode: str, preprocess: Optional[TextPreprocessor]):
+def get_model(char_th: int, dim: int, mode: str, preprocess: Optional[TextPreprocessor], vec_name="glove.840B.300d"):
     recurrent_layer = CudnnGru(dim, w_init=TruncatedNormal(stddev=0.05))
 
     if mode.startswith("shared-norm"):
@@ -81,7 +81,7 @@ def get_model(char_th: int, dim: int, mode: str, preprocess: Optional[TextPrepro
 
     return Attention(
         encoder=DocumentAndQuestionEncoder(answer_encoder),
-        word_embed=FixedWordEmbedder(vec_name="glove.840B.300d", word_vec_init_scale=0, learn_unk=False, cpu=True),
+        word_embed=FixedWordEmbedder(vec_name=vec_name, word_vec_init_scale=0, learn_unk=False, cpu=True),
         char_embed=CharWordEmbedder(
             LearnedCharEmbedder(word_size_th=14, char_th=char_th, char_dim=20, init_scale=0.05, force_cpu=True),
             MaxPool(Conv1d(100, 5, 0.8)),

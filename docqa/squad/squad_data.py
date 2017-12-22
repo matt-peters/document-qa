@@ -212,3 +212,74 @@ class DocumentQaTrainingData(ParagraphQaTrainingData):
     def _preprocess(self, x):
         data = split_docs(x)
         return data, len(data)
+
+
+class SquadELMoCorpus(Configurable):
+    TRAIN_FILE = "train.pkl"
+    DEV_FILE = "dev.pkl"
+    NAME = "squad_elmo"
+
+    VOCAB_FILE = "vocab_elmo.txt"
+    WORD_VEC_SUFFIX = "_pruned"
+
+    def __init__(self):
+        dir = join(CORPUS_DIR, self.NAME)
+        if not exists(dir) or not isdir(dir):
+            raise ValueError("No directory %s, corpus not built yet?" % dir)
+        self.dir = dir
+
+    @property
+    def evidence(self):
+        return None
+
+    def get_vocab_file(self):
+        self.get_vocab()
+        return join(self.dir, self.VOCAB_FILE)
+
+    def get_vocab(self):
+        voc_file = join(self.dir, self.VOCAB_FILE)
+        if exists(voc_file):
+            with open(voc_file, "r") as f:
+                return [x.rstrip() for x in f]
+        else:
+            raise ValueError
+
+    def get_pruned_word_vecs(self, word_vec_name, voc=None):
+        """
+        Loads word vectors that have been pruned to the case-insensitive vocab of this corpus.
+        WARNING: this includes dev words
+
+        This exists since loading word-vecs each time we startup can be a big pain, so
+        we cache the pruned vecs on-disk as a .npy file we can re-load quickly.
+        """
+
+        vec_file = join(self.dir, word_vec_name + self.WORD_VEC_SUFFIX + ".npy")
+        if isfile(vec_file):
+            print("Loading word vec %s for %s from cache" % (word_vec_name, self.name))
+            with open(vec_file, "rb") as f:
+                return pickle.load(f)
+        else:
+            print("Building pruned word vec %s for %s" % (self.name, word_vec_name))
+            voc = self.get_vocab()
+            vecs = load_word_vectors(word_vec_name, voc, lower=False)
+            with open(vec_file, "wb") as f:
+                pickle.dump(vecs, f)
+            return vecs
+
+    def get_resource_loader(self):
+        return ResourceLoader(self.get_pruned_word_vecs)
+
+    def get_train(self) -> List[Document]:
+        return self._load(join(self.dir, self.TRAIN_FILE))
+
+    def get_dev(self) -> List[Document]:
+        return self._load(join(self.dir, self.DEV_FILE))
+
+    def get_test(self) -> List[Document]:
+        return []
+
+    def _load(self, file) -> List[Document]:
+        if not exists(file):
+            return []
+        with open(file, "rb") as f:
+            return pickle.load(f)

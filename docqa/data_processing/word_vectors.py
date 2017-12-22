@@ -11,7 +11,7 @@ from docqa.config import VEC_DIR
 """ Loading words vectors """
 
 
-def load_word_vectors(vec_name: str, vocab: Optional[Iterable[str]]=None, is_path=False):
+def load_word_vectors(vec_name: str, vocab: Optional[Iterable[str]]=None, is_path=False, lower=True):
     if not is_path:
         vec_path = join(VEC_DIR, vec_name)
     else:
@@ -24,12 +24,15 @@ def load_word_vectors(vec_name: str, vocab: Optional[Iterable[str]]=None, is_pat
         vec_path = vec_path + ".pkl"
     else:
         raise ValueError("No file found for vectors %s" % vec_name)
-    return load_word_vector_file(vec_path, vocab)
+    return load_word_vector_file(vec_path, vocab, lower=lower)
 
 
-def load_word_vector_file(vec_path: str, vocab: Optional[Iterable[str]] = None):
+def load_word_vector_file(vec_path: str, vocab: Optional[Iterable[str]] = None, lower=True):
     if vocab is not None:
-        vocab = set(x.lower() for x in vocab)
+        if lower:
+            vocab = set(x.lower() for x in vocab)
+        else:
+            vocab = set(vocab)
 
     # notes some of the large vec files produce utf-8 errors for some words, just skip them
     if vec_path.endswith(".pkl"):
@@ -45,6 +48,10 @@ def load_word_vector_file(vec_path: str, vocab: Optional[Iterable[str]] = None):
         for line in fh:
             word_ix = line.find(" ")
             word = line[:word_ix]
-            if (vocab is None) or (word.lower() in vocab):
+            if lower:
+                norm_word = word.lower()
+            else:
+                norm_word = word
+            if (vocab is None) or (norm_word in vocab):
                 pruned_dict[word] = np.array([float(x) for x in line[word_ix + 1:-1].split(" ")], dtype=np.float32)
     return pruned_dict

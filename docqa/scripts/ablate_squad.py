@@ -11,7 +11,7 @@ from docqa.data_processing.text_utils import NltkPlusStopWords
 from docqa.dataset import ClusteredBatcher
 from docqa.evaluator import LossEvaluator, MultiParagraphSpanEvaluator, SpanEvaluator
 from docqa.scripts.ablate_triviaqa import get_model
-from docqa.squad.squad_data import SquadCorpus, DocumentQaTrainingData
+from docqa.squad.squad_data import SquadCorpus, DocumentQaTrainingData, SquadELMoCorpus
 from docqa.squad.squad_document_qa import SquadTfIdfRanker
 from docqa.text_preprocessor import WithIndicators
 from docqa.trainer import TrainParams, SerializableOptimizer
@@ -29,18 +29,27 @@ def main():
     parser = argparse.ArgumentParser(description='Train a model on document-level SQuAD')
     parser.add_argument('mode', choices=["paragraph", "confidence", "shared-norm", "merge", "sigmoid"])
     parser.add_argument("name", help="Output directory")
+    parser.add_argument("--exclude_glove", action="store_true")
     args = parser.parse_args()
     mode = args.mode
     out = args.name + "-" + datetime.now().strftime("%m%d-%H%M%S")
 
-    corpus = SquadCorpus()
+    use_elmo = args.exclude_glove
+    if use_elmo:
+        print("YO!!")
+        corpus = SquadELMoCorpus()
+    else:
+        corpus = SquadCorpus()
     if mode == "merge":
         # Adds paragraph start tokens, since we will be concatenating paragraphs together
         pre = WithIndicators(True, para_tokens=False, doc_start_token=False)
     else:
         pre = None
 
-    model = get_model(50, 100, args.mode, pre)
+    if use_elmo:
+        model = get_model(50, 100, args.mode, pre, vec_name='squad_train_dev_all_unique_tokens_context_concat_lm_2x4096_512_2048cnn_2xhighway_skip')
+    else:
+        model = get_model(50, 100, args.mode, pre)
 
     if mode == "paragraph":
         # Run in the "standard" known-paragraph setting
