@@ -5,15 +5,18 @@ from docqa.nn.layers import Mapper
 
 
 class ElmoLayer(Mapper):
-    def __init__(self, l2_coef: float, layer_norm: bool, top_layer_only: bool):
+    def __init__(self, l2_coef: float, layer_norm: bool, top_layer_only: bool,
+                 lstm_only=False):
         self.l2_coef = l2_coef
         self.layer_norm = layer_norm
         self.top_layer_only = top_layer_only
+        self.lstm_only = lstm_only
 
     def apply(self, is_train, x, mask=None):
         mask = tf.sequence_mask(mask, tf.shape(x)[1])
         output = weight_layers(1, x, mask, self.l2_coef, do_layer_norm=self.layer_norm,
-                               use_top_only=self.top_layer_only)["weighted_ops"][0]
+                               use_top_only=self.top_layer_only,
+                               lstm_only=self.lstm_only)["weighted_ops"][0]
         return output
 
     def __setstate__(self, state):
@@ -23,11 +26,14 @@ class ElmoLayer(Mapper):
             state["layer_norm"] = True
         if "top_layer_only" not in state:
             state["top_layer_only"] = False
+        if "lstm_only" not in state:
+            state["lstm_only"] = False
         super().__setstate__(state)
 
 
 def weight_layers(n_out_layers, lm_embeddings, mask, l2_coef=None,
-                  use_top_only=False, do_layer_norm=True):
+                  use_top_only=False, do_layer_norm=True,
+                  lstm_only=False):
     '''
     Weight the layers of a biLM with trainable scalar weights.
     For each output layer, this returns two ops.  The first computes
@@ -58,6 +64,10 @@ def weight_layers(n_out_layers, lm_embeddings, mask, l2_coef=None,
 
     # Get ops for computing LM embeddings and mask
     n_lm_layers = int(lm_embeddings.get_shape()[1])
+    if lstm_only:
+        n_weight_layers = n_lm_layers - 1
+    else:
+        n_weight_layers = n_lm_layers
     lm_dim = int(lm_embeddings.get_shape()[3])
 
     if not tf.get_variable_scope().reuse:
@@ -96,23 +106,25 @@ def weight_layers(n_out_layers, lm_embeddings, mask, l2_coef=None,
             else:
                 W = tf.get_variable(
                     'ELMo_W_{}'.format(k),
-                    shape=(n_lm_layers,),
+                    shape=(n_weight_layers,),
                     initializer=tf.zeros_initializer,
                     regularizer=_l2_regularizer,
                     trainable=True,
                 )
 
                 if prefix is not None:
-                    for i in range(3):
+                    for i in range(n_weight_layers):
                         print("Monitoring " + prefix + "%d/" % i)
                         tf.add_to_collection(prefix + "%d/" % i, W[i])
 
                 # normalize the weights
                 normed_weights = tf.split(
-                    tf.nn.softmax(W + 1.0 / n_lm_layers), n_lm_layers
+                    tf.nn.softmax(W + 1.0 / n_weight_layers), n_weight_layers
                 )
                 # split LM layers
                 layers = tf.split(lm_embeddings, n_lm_layers, axis=1)
+                if lstm_only:
+                    layers = layers[1:]
 
                 # compute the weighted, normalized LM activations
                 pieces = []

@@ -29,6 +29,7 @@ def main():
     parser.add_argument("--mode", choices=["input", "output", "both", "none"], default="both")
     parser.add_argument("--top_layer_only", action="store_true")
     parser.add_argument("--exclude_glove", action="store_true")
+    parser.add_argument("--type_context", action="store_true")
     args = parser.parse_args()
 
     out = args.output_dir + "-" + datetime.now().strftime("%m%d-%H%M%S")
@@ -43,13 +44,17 @@ def main():
                                  eval_samples=dict(dev=None, train=8000))
 
     lm_reduce = MapperSeq(
-        ElmoLayer(args.l2, layer_norm=False, top_layer_only=args.top_layer_only),
+        ElmoLayer(args.l2, layer_norm=False, top_layer_only=args.top_layer_only,
+                  lstm_only=args.type_context),
         DropoutLayer(0.5),
     )
 
     if args.exclude_glove:
         print("Removing GloVe")
         word_embed = None
+    elif args.type_context:
+        print("type context")
+        word_embed=FixedWordEmbedder(vec_name="squad_train_dev_all_unique_tokens_context_concat_lm_2x4096_512_2048cnn_2xhighway_skip", word_vec_init_scale=0, learn_unk=False, cpu=True)
     else:
         word_embed=FixedWordEmbedder(vec_name="glove.840B.300d", word_vec_init_scale=0, learn_unk=False, cpu=True)
 
